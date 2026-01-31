@@ -23,7 +23,7 @@ public class SearchService {
     private int maxResults;
 
     public SearchResult search(String question) {
-        System.out.println("🔍 Searching for: " + question);
+        // System.out.println("🔍 Searching for: " + question);
 
         // 1. Create embedding for question
         float[] queryEmbedding = openAIService.createEmbedding(question);
@@ -32,7 +32,7 @@ public class SearchService {
         // 2. Search similar documents in database
         List<DocumentChunk> similarChunks = documentRepository.findSimilarDocuments(embeddingStr);
 
-        System.out.println("✅ Found " + similarChunks.size() + " similar chunks");
+        // System.out.println("✅ Found " + similarChunks.size() + " similar chunks");
 
         // 3. Extract content from chunks
         List<String> contexts = similarChunks.stream()

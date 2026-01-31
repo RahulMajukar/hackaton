@@ -33,11 +33,11 @@ public class DataLoader implements CommandLineRunner {
 
     @Override
     public void run(String... args) {
-        System.out.println("🚀 Starting knowledge base indexing from: " + knowledgeBasePath);
+        // System.out.println("🚀 Starting knowledge base indexing from: " + knowledgeBasePath);
 
         File baseDir = new File(knowledgeBasePath);
         if (!baseDir.exists()) {
-            System.err.println("❌ Knowledge base path does not exist: " + knowledgeBasePath);
+            // System.err.println("❌ Knowledge base path does not exist: " + knowledgeBasePath);
             return;
         }
 
@@ -49,22 +49,22 @@ public class DataLoader implements CommandLineRunner {
 
         for (File pdfFile : pdfFiles) {
             if (documentRepository.existsByFilePath(pdfFile.getPath())) {
-                System.out.println("⏭️ Skipping (already indexed): " + pdfFile.getName());
+                // System.out.println("⏭️ Skipping (already indexed): " + pdfFile.getName());
                 continue;
             }
 
-            System.out.println("📄 Processing: " + pdfFile.getName());
+            // System.out.println("📄 Processing: " + pdfFile.getName());
             newFiles++;
 
             try {
                 String text = pdfReaderService.extractTextFromPDF(pdfFile);
                 if (text == null || text.trim().isEmpty()) {
-                    System.err.println("⚠️ Empty content in: " + pdfFile.getName());
+                    // System.err.println("⚠️ Empty content in: " + pdfFile.getName());
                     continue;
                 }
 
                 List<String> chunks = pdfReaderService.chunkText(text, chunkSize);
-                System.out.println("  → Split into " + chunks.size() + " chunks");
+                // System.out.println("  → Split into " + chunks.size() + " chunks");
 
                 for (int i = 0; i < chunks.size(); i++) {
                     String chunkContent = chunks.get(i).trim();
@@ -86,7 +86,7 @@ public class DataLoader implements CommandLineRunner {
                     totalChunks++;
                 }
 
-                System.out.println("✅ Completed: " + pdfFile.getName() + " (" + chunks.size() + " chunks)");
+                // System.out.println("✅ Completed: " + pdfFile.getName() + " (" + chunks.size() + " chunks)");
 
             } catch (Exception e) {
                 System.err.println("❌ Error processing " + pdfFile.getName() + ": " + e.getMessage());
@@ -94,9 +94,9 @@ public class DataLoader implements CommandLineRunner {
             }
         }
 
-        System.out.println("\n✨ Indexing complete!");
-        System.out.println("   New files processed: " + newFiles);
-        System.out.println("   Total new chunks: " + totalChunks);
-        System.out.println("   Total chunks in DB: " + documentRepository.count());
+        // System.out.println("\n✨ Indexing complete!");
+        // System.out.println("   New files processed: " + newFiles);
+        // System.out.println("   Total new chunks: " + totalChunks);
+        // System.out.println("   Total chunks in DB: " + documentRepository.count());
     }
 }
