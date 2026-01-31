@@ -8,6 +8,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.CommandLineRunner;
 import org.springframework.stereotype.Component;
+
 import java.io.File;
 import java.time.LocalDateTime;
 import java.util.List;
@@ -17,46 +18,60 @@ public class DataLoader implements CommandLineRunner {
 
     @Autowired
     private PDFReaderService pdfReaderService;
+
     @Autowired
     private OpenAIService openAIService;
+
     @Autowired
     private DocumentRepository documentRepository;
 
     @Value("${app.knowledge-base-path}")
     private String knowledgeBasePath;
 
-    @Value("${app.chunk-size}")
+    @Value("${app.chunk-size:500}")
     private int chunkSize;
 
     @Override
-    public void run(String... args) throws Exception {
-        System.out.println("🚀 Starting data loading from: " + knowledgeBasePath);
+    public void run(String... args) {
+        System.out.println("🚀 Starting knowledge base indexing from: " + knowledgeBasePath);
 
-        // Get all PDFs
+        File baseDir = new File(knowledgeBasePath);
+        if (!baseDir.exists()) {
+            System.err.println("❌ Knowledge base path does not exist: " + knowledgeBasePath);
+            return;
+        }
+
         List<File> pdfFiles = pdfReaderService.getAllPDFs(knowledgeBasePath);
-        System.out.println("Found " + pdfFiles.size() + " PDF files");
+        System.out.println("📁 Found " + pdfFiles.size() + " PDF files");
 
         int totalChunks = 0;
+        int newFiles = 0;
 
-        // Process each PDF
         for (File pdfFile : pdfFiles) {
-            System.out.println("Processing: " + pdfFile.getPath());
+            if (documentRepository.existsByFilePath(pdfFile.getPath())) {
+                System.out.println("⏭️ Skipping (already indexed): " + pdfFile.getName());
+                continue;
+            }
+
+            System.out.println("📄 Processing: " + pdfFile.getName());
+            newFiles++;
 
             try {
-                // Extract text
                 String text = pdfReaderService.extractTextFromPDF(pdfFile);
+                if (text == null || text.trim().isEmpty()) {
+                    System.err.println("⚠️ Empty content in: " + pdfFile.getName());
+                    continue;
+                }
 
-                // Chunk text
                 List<String> chunks = pdfReaderService.chunkText(text, chunkSize);
+                System.out.println("  → Split into " + chunks.size() + " chunks");
 
-                // Process each chunk
                 for (int i = 0; i < chunks.size(); i++) {
-                    String chunkContent = chunks.get(i);
+                    String chunkContent = chunks.get(i).trim();
+                    if (chunkContent.isEmpty()) continue;
 
-                    // Create embedding
                     float[] embedding = openAIService.createEmbedding(chunkContent);
 
-                    // Create document chunk entity
                     DocumentChunk chunk = new DocumentChunk();
                     chunk.setFilePath(pdfFile.getPath());
                     chunk.setFolderName(pdfFile.getParentFile().getName());
@@ -64,21 +79,24 @@ public class DataLoader implements CommandLineRunner {
                     chunk.setContent(chunkContent);
                     chunk.setChunkIndex(i);
                     chunk.setTotalChunks(chunks.size());
-                    chunk.setEmbedding(embedding);
+                    chunk.setEmbeddingVector(embedding); // CRITICAL: Uses helper with proper formatting
                     chunk.setCreatedAt(LocalDateTime.now());
 
-                    // Save to database
-                    documentRepository.save(chunk);
+                    documentRepository.save(chunk); // Now works with @SQLInsert casting
                     totalChunks++;
-
-                    System.out.println("  Saved chunk " + (i + 1) + "/" + chunks.size());
                 }
 
+                System.out.println("✅ Completed: " + pdfFile.getName() + " (" + chunks.size() + " chunks)");
+
             } catch (Exception e) {
-                System.err.println("Error processing " + pdfFile.getName() + ": " + e.getMessage());
+                System.err.println("❌ Error processing " + pdfFile.getName() + ": " + e.getMessage());
+                e.printStackTrace();
             }
         }
 
-        System.out.println("✅ Data loading complete! Loaded " + totalChunks + " chunks");
+        System.out.println("\n✨ Indexing complete!");
+        System.out.println("   New files processed: " + newFiles);
+        System.out.println("   Total new chunks: " + totalChunks);
+        System.out.println("   Total chunks in DB: " + documentRepository.count());
     }
 }

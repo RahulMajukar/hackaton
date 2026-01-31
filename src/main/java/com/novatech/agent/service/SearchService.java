@@ -19,21 +19,20 @@ public class SearchService {
     @Autowired
     private OpenAIService openAIService;
 
-    @Value("${app.max-results}")
+    @Value("${app.max-results:5}")
     private int maxResults;
 
     public SearchResult search(String question) {
-        System.out.println("Searching for: " + question);
+        System.out.println("🔍 Searching for: " + question);
 
         // 1. Create embedding for question
         float[] queryEmbedding = openAIService.createEmbedding(question);
-        String embeddingStr = arrayToString(queryEmbedding);
+        String embeddingStr = floatArrayToVectorString(queryEmbedding);
 
         // 2. Search similar documents in database
-        List<DocumentChunk> similarChunks = documentRepository.findSimilarDocuments(
-                embeddingStr, maxResults);
+        List<DocumentChunk> similarChunks = documentRepository.findSimilarDocuments(embeddingStr);
 
-        System.out.println("Found " + similarChunks.size() + " similar chunks");
+        System.out.println("✅ Found " + similarChunks.size() + " similar chunks");
 
         // 3. Extract content from chunks
         List<String> contexts = similarChunks.stream()
@@ -54,34 +53,25 @@ public class SearchService {
         return new SearchResult(answer, sources);
     }
 
-    // private String arrayToString(float[] array) {
-    // // Convert float array to PostgreSQL vector format: {0.1, 0.2, ...}
-    // StringBuilder sb = new StringBuilder();
-    // sb.append("{");
-    // for (int i = 0; i < array.length; i++) {
-    // sb.append(array[i]);
-    // if (i < array.length - 1) {
-    // sb.append(",");
-    // }
-    // }
-    // sb.append("}");
-    // return sb.toString();
-    // }
-    private String arrayToString(float[] array) {
-        // pgvector expects [0.1,0.2,...] format, not {0.1,0.2,...}
+    // CRITICAL: pgvector requires EXACT format: [0.123,0.456,...] WITHOUT spaces
+    private String floatArrayToVectorString(float[] array) {
+        if (array == null || array.length == 0) {
+            return "[" + "0.0,".repeat(1535) + "0.0]";
+        }
         StringBuilder sb = new StringBuilder();
-        sb.append("[");
+        sb.append('[');
         for (int i = 0; i < array.length; i++) {
-            sb.append(array[i]);
+            // Format to avoid scientific notation and extra spaces
+            sb.append(String.format("%.7f", array[i]).replaceAll("0+?$", "").replaceAll("\\.$", ".0"));
             if (i < array.length - 1) {
-                sb.append(",");
+                sb.append(',');
             }
         }
-        sb.append("]");
+        sb.append(']');
         return sb.toString();
     }
 
-    // Helper classes with getters
+    // Helper classes
     public static class SearchResult {
         private final String answer;
         private final List<SourceInfo> sources;
@@ -91,13 +81,8 @@ public class SearchService {
             this.sources = sources;
         }
 
-        public String getAnswer() {
-            return answer;
-        }
-
-        public List<SourceInfo> getSources() {
-            return sources;
-        }
+        public String getAnswer() { return answer; }
+        public List<SourceInfo> getSources() { return sources; }
     }
 
     public static class SourceInfo {
@@ -111,16 +96,8 @@ public class SearchService {
             this.chunkNumber = chunkNumber;
         }
 
-        public String getFileName() {
-            return fileName;
-        }
-
-        public String getFolder() {
-            return folder;
-        }
-
-        public int getChunkNumber() {
-            return chunkNumber;
-        }
+        public String getFileName() { return fileName; }
+        public String getFolder() { return folder; }
+        public int getChunkNumber() { return chunkNumber; }
     }
 }
